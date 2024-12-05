@@ -5,23 +5,41 @@
 #install.packages("shiny)
 #install.packages("shinythemes")
 #install.packages("dplyr")
+#install.packages("tidyverse")
+#install.packages("rsconnect")
 library(shiny)
 library(shinythemes)
 library(dplyr)
+library(tidyverse)
+library(rsconnect)
 
 #Leer la base de datos para el diccionario y las unidades frasológicas de los siguientes documentos de drive
-url_diccionario = "https://docs.google.com/spreadsheets/d/1KfhMd0Xw00OSo-PcZQSGkcbdspaSwT70CdQxZMHxxh8/gviz/tq?tqx=out:csv&sheet=Definiciones"
+# Enlace para la hoja "Definiciones"
+url_diccionario = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTa0VLFfj61UoYQWw-dEh_J-Ndkeg9MMVPTdnqC4e2z0fW7Rao6RabGf2TqYmz16_WXjG5R6lDS8o8X/pub?gid=0&single=true&output=csv"
+# Guardar la hoja "Definiciones" en un df 
 diccionario = read.csv(url_diccionario)
-url_uf = "https://docs.google.com/spreadsheets/d/1KfhMd0Xw00OSo-PcZQSGkcbdspaSwT70CdQxZMHxxh8/gviz/tq?tqx=out:csv&sheet=UnidadesFraselogicas"
+
+# Enlace para la hoja "UnidadesFraselogicas"
+url_uf = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTa0VLFfj61UoYQWw-dEh_J-Ndkeg9MMVPTdnqC4e2z0fW7Rao6RabGf2TqYmz16_WXjG5R6lDS8o8X/pub?gid=272392896&single=true&output=csv"
+# Guardar la hoja "UnidadesFraselogicas" en un df 
 UF = read.csv(url_uf)
 
-#Acceder a la carpeta de audios
-audio_url = "https://raw.githubusercontent.com/Laboratorio-de-HD/labHD-web/5b1ef818f47f95630be2b8c9b9a65e72489c6116/www/audio_sample.mp3"
-
 #Lo siguiente es para estandarizar variables y cambiar formatos para desplegar en la shiny app 
+correct_terms = c(
+  "Sustantivo" = "(sust)",
+  "Adjetivo" = "(adj)",
+  "Articulo" = "(art)",
+  "Pronombre" = "(pron)",
+  "Verbo" = "(vb)",
+  "Adverbio" = "(adv)",
+  "Interjeccion" = "(int)",
+  "Preposicion" = "(prep)",
+  "Conjuncion" = "(conj)"
+)
+
 diccionario = diccionario %>% 
   mutate(gramm = categoria_gramatical) %>% 
-  mutate(gramm = recode(gramm, !!!correct_terms)) %>% 
+  mutate(gramm = dplyr::recode(gramm, !!!correct_terms)) %>% 
   mutate(corpus_format = paste0("(", corpus, ")*")) %>% 
   mutate(definicion_adicional = ifelse(is.na(definicion_adicional), "", definicion_adicional)) %>%
   select(where(~ all(!is.na(.))))
@@ -31,7 +49,7 @@ UF = UF %>%
   mutate(corpus_format = paste0("(", corpus, ")*"))%>%
   select(where(~ all(!is.na(.))))
 
-# Definir UI
+# Define UI (Componente 1)
 ui = fluidPage(
   theme = shinytheme("sandstone"),
   titlePanel("DICCIONARIO REGIOMONTANO"),
@@ -79,18 +97,16 @@ ui = fluidPage(
   )
 )
 
-
-# Definir server 
+# Componente 2 (Server)
 server = function(input, output, session) {
-  folder_url = "https://raw.githubusercontent.com/Laboratorio-de-HD/labHD-web/master/www/"
+  folder_url = "https://raw.githubusercontent.com/Laboratorio-de-HD/prototipo_diccionario/master/www/"
   
-  # Function to check if a file exists
+  # Verificar que exista el url
   file_exists = function(url) {
     tryCatch({
-      # Usa GET en lugar de HEAD para verificar la URL
       response = httr::GET(url)
       
-      # Verifica si la respuesta tiene un código de estado 200 (OK)
+      # Verificar si la respuesta tiene un código de estado 200 (OK)
       return(httr::status_code(response) == 200)
     }, error = function(e) {
       # Captura el error y muestra un mensaje
@@ -138,7 +154,7 @@ server = function(input, output, session) {
           })
           
           corpus_audio_players = lapply(indices_def, function(idx) {
-            url = paste0(folder_url, subset_diccionario$corpus[idx], ".mp3")
+            url = paste0(folder_url, gsub(" ", "%20", subset_diccionario$corpus[idx]), ".mp3")
             if (file_exists(url)) {
               # Crear el reproductor de audio sin controles, pero con el botón play/pause visible
               audio_player = tags$audio(
@@ -228,5 +244,3 @@ server = function(input, output, session) {
 
 # Crear el objeto Shiny
 shinyApp(ui = ui, server = server)
-
-
